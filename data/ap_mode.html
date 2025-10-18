@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WiFi Setup</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: sans-serif; background-color: #282c34; color: white; text-align: center; padding: 20px; }
+        h1 { color: #61afef; }
+        .container { border: 2px solid #61afef; padding: 20px; display: inline-block; margin-top: 20px; }
+        select, input { width: 280px; padding: 10px; margin: 10px auto; display: block; }
+        button { background-color: #61afef; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+        #status { margin-top: 15px; min-height: 20px; }
+        label { display: block; margin-top: 10px; }
+        .password-wrapper { position: relative; display: inline-block; width: 280px; margin: 10px auto; }
+        .password-wrapper input { width: 100%; margin: 0; padding-right: 40px; }
+        .eye-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; width: 24px; height: 24px; opacity: 0.6; transition: opacity 0.2s; }
+        .eye-icon:hover { opacity: 1; }
+    </style>
+</head>
+<body>
+    <h1>WiFi Setup</h1>
+    <div class="container">
+        <button id="scan-btn">Scan for Networks</button>
+        <p id="status"></p>
+        
+        <form action="/save" method="post">
+            <label for="ssid-select">Choose a Network:</label>
+            <select name="ssid_select" id="ssid-select"></select>
+            
+            <label for="ssid-manual">Or Enter SSID Manually:</label>
+            <input type="text" name="ssid_manual" id="ssid-manual" placeholder="Manual SSID">
+
+            <label for="password">Password:</label>
+            <div class="password-wrapper">
+                <input type="password" name="password" id="password" placeholder="Password" required>
+                <svg class="eye-icon" onclick="togglePassword('password')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+            </div>
+            
+            <input type="submit" value="Save & Reboot">
+        </form>
+    </div>
+
+    <script>
+        const scanBtn = document.getElementById('scan-btn');
+        const statusEl = document.getElementById('status');
+        const ssidSelect = document.getElementById('ssid-select');
+        const manualSsidInput = document.getElementById('ssid-manual');
+
+        async function pollScanResults() {
+            try {
+                const response = await fetch('/api/scan-results');
+                if (response.status === 202) { // Still scanning
+                    setTimeout(pollScanResults, 1500); // Poll again
+                } else if (response.ok) {
+                    const networks = await response.json();
+                    statusEl.textContent = `Scan complete. Found ${networks.length} networks.`;
+                    ssidSelect.innerHTML = '<option value="">-- Select from list --</option>';
+                    if (networks.length > 0) {
+                        networks.forEach(net => {
+                            const option = document.createElement('option');
+                            option.value = net.ssid;
+                            option.textContent = `${net.ssid} (${net.rssi} dBm)`;
+                            ssidSelect.appendChild(option);
+                        });
+                    }
+                    scanBtn.disabled = false;
+                } else {
+                    throw new Error('Scan result error');
+                }
+            } catch (e) {
+                statusEl.textContent = 'Error getting scan results.';
+                scanBtn.disabled = false;
+            }
+        }
+
+        scanBtn.addEventListener('click', async () => {
+            statusEl.textContent = 'Starting scan...';
+            scanBtn.disabled = true;
+            try {
+                const response = await fetch('/api/scan');
+                if (response.ok) {
+                    statusEl.textContent = 'Scanning in progress...';
+                    setTimeout(pollScanResults, 1500); // Start polling
+                } else {
+                    throw new Error('Failed to start scan');
+                }
+            } catch (e) {
+                statusEl.textContent = 'Could not start scan.';
+                scanBtn.disabled = false;
+            }
+        });
+
+        ssidSelect.addEventListener('change', () => {
+            if (ssidSelect.value) manualSsidInput.value = '';
+        });
+        manualSsidInput.addEventListener('input', () => {
+            if (manualSsidInput.value) ssidSelect.value = '';
+        });
+
+        // Toggle password visibility
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            const icon = event.currentTarget;
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+            } else {
+                input.type = 'password';
+                icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+            }
+        }
+    </script>
+</body>
+</html>

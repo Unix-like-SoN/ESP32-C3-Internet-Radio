@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>ESP32 Radio Control v2.0</title>
+    <!-- ВЕРСИЯ: 2024-10-12 С ЧЕКБОКСОМ ЛОГОВ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: auto; }
+        h1, h2 { color: #bb86fc; border-bottom: 2px solid #373737; padding-bottom: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+        .card { background-color: #1e1e1e; border-radius: 8px; padding: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); display: flex; flex-direction: column; }
+        button, input[type="submit"], .btn-like { background-color: #bb86fc; color: #121212; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; text-decoration: none; display: inline-block; }
+        button:hover, input[type="submit"]:hover, .btn-like:hover { background-color: #3700b3; color: #fff; }
+        .btn-danger { background-color: #cf6679; }
+        .btn-danger:hover { background-color: #b00020; }
+        .station-list { list-style: none; padding: 0; }
+        .station-item { background-color: #2c2c2c; padding: 10px; border-radius: 5px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; cursor: grab; }
+        .station-item:hover { background-color: #373737; }
+        .station-name { font-weight: bold; flex-grow: 1; }
+        .station-controls button { background: none; border: none; color: #e0e0e0; font-size: 18px; cursor: pointer; padding: 5px; }
+        .station-controls button:hover { color: #bb86fc; }
+        #logs { background-color: #000; border: 1px solid #373737; height: 300px; overflow-y: scroll; padding: 10px; white-space: pre-wrap; font-family: "Courier New", Courier, monospace; border-radius: 5px; }
+        .volume-slider { width: 100%; }
+        .center-content { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .center-content > * { margin-bottom: 15px; }
+        .center-content > *:last-child { margin-bottom: 0; }
+        .station-buttons { text-align: center; margin-top: 15px; }
+        .edit-form input { background-color: #333; color: #fff; border: 1px solid #555; padding: 5px; border-radius: 3px; width: 60%; }
+        .import-export-container { display: flex; align-items: center; gap: 15px; }
+        .password-wrapper { position: relative; display: block; }
+        .password-wrapper input { padding-right: 45px; box-sizing: border-box; }
+        .eye-icon { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; width: 22px; height: 22px; opacity: 0.5; transition: opacity 0.2s; color: #a0a0a0; }
+        .eye-icon:hover { opacity: 1; color: #bb86fc; }
+        #add-form-li { animation: slideInDown 0.3s ease-out; }
+        @keyframes slideInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ESP32 Radio Control</h1>
+
+        <div class="grid">
+            <div class="card">
+                <div class="center-content">
+                    <h2>Пульт управления</h2>
+                    <div>
+                        <button onclick="sendCommand('/api/player/previous')">⏮️ Prev</button>
+                        <button onclick="sendCommand('/api/player/next')">Next ⏭️</button>
+                    </div>
+                    <div>
+                        <label for="volume">Громкость:</label>
+                        <input type="range" id="volume" class="volume-slider" min="0" max="1" step="0.01" onchange="setVolume(this.value)">
+                    </div>
+                    <button class="btn-danger" onclick="sendCommand('/api/system/reboot')">Перезагрузить</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Станции <span id="station-counter" style="color: #888; font-size: 0.8em;">(0/25)</span></h2>
+                <ul id="station-list" class="station-list"></ul>
+                <div class="station-buttons">
+                    <button onclick="saveOrder()">Сохранить порядок</button>
+                    <button id="addStationBtn" onclick="showAddForm()">Добавить</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <h2>Импорт / Экспорт</h2>
+            <div class="import-export-container">
+                <a href="/api/stations/export" download="stations.json" class="btn-like">Экспорт</a>
+                <form id="import-form" style="display: flex; align-items: center; gap: 10px;">
+                    <input type="file" id="import-file" accept=".json" required>
+                    <input type="submit" value="Импорт">
+                </form>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <h2>Логи</h2>
+            <label style="display: block; margin-bottom: 10px;">
+                <input type="checkbox" id="logsToggle" onchange="toggleLogs(this.checked)">
+                <span>Показывать логи (обновление каждые 5 сек)</span>
+            </label>
+            <pre id="logs" style="color: #888;">Включите чекбокс выше для загрузки логов с ESP32...</pre>
+        </div>
+
+        <!-- Раздел Settings -->
+        <div class="card" style="margin-top: 20px;">
+            <h2>⚙️ Settings</h2>
+            
+            <!-- Стиль визуализатора -->
+            <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="color: #bb86fc; margin-top: 0; margin-bottom: 10px;">🎨 Стиль визуализатора</h3>
+                <p style="color: #a0a0a0; font-size: 14px; margin-bottom: 15px;">
+                    Выберите стиль анимации на OLED дисплее (показывается после 15 сек неактивности)
+                </p>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;" id="visualizer-styles">
+                    <!-- Заполняется динамически -->
+                </div>
+            </div>
+
+            <!-- Поворот дисплея -->
+            <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="color: #bb86fc; margin-top: 0; margin-bottom: 10px;">📺 Поворот дисплея</h3>
+                <p style="color: #a0a0a0; font-size: 14px; margin-bottom: 15px;">
+                    Измените ориентацию OLED дисплея (нормальный или перевернутый на 180°)
+                </p>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <label style="color: #e0e0e0; font-weight: 500;">Ориентация:</label>
+                    <select id="displayRotationSelect" onchange="changeDisplayRotation()" style="padding: 10px; background: #373737; border: 2px solid #555; border-radius: 6px; color: #e0e0e0; font-size: 14px; cursor: pointer;">
+                        <option value="0">Нормальный</option>
+                        <option value="2" selected>Flipped (180°)</option>
+                    </select>
+                    <span id="displayRotationStatus" style="color: #48bb78; font-size: 14px; display: none;">✓ Применено</span>
+                </div>
+            </div>
+
+            <!-- Опасная зона -->
+            <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; border-left: 4px solid #ff6b6b;">
+                <h3 style="color: #ff6b6b; margin-top: 0; margin-bottom: 10px;">⚠️ Опасная зона</h3>
+                <p style="color: #a0a0a0; font-size: 14px; margin-bottom: 15px;">
+                    Factory Reset удалит ВСЕ настройки и вернет устройство к заводским настройкам.
+                </p>
+                <button onclick="showFactoryResetModal()" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); padding: 12px 24px; border: none; border-radius: 6px; color: white; font-weight: 600; cursor: pointer;">
+                    🗑️ Factory Reset
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно Factory Reset -->
+    <div id="factoryResetModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;">
+        <div style="background: #1e1e1e; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+            <h2 style="color: #ff6b6b; margin-top: 0;">⚠️ Подтвердите Factory Reset</h2>
+            
+            <div style="background: #2a2a2a; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <p style="color: #e0e0e0; margin: 0 0 10px 0; font-weight: 600;">Будут удалены:</p>
+                <ul style="color: #a0a0a0; margin: 0; padding-left: 20px; font-size: 14px;">
+                    <li>Учетные данные веб-кабинета</li>
+                    <li>WiFi настройки</li>
+                    <li>Список радиостанций</li>
+                    <li>Сохраненное состояние (громкость, станция)</li>
+                    <li>Все логи</li>
+                </ul>
+            </div>
+
+            <p style="color: #ff6b6b; font-weight: 600; margin-bottom: 20px;">Это действие НЕЛЬЗЯ отменить!</p>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; color: #e0e0e0; margin-bottom: 8px; font-weight: 500;">Введите пароль для подтверждения:</label>
+                <div class="password-wrapper">
+                    <input type="password" id="factoryResetPassword" placeholder="Пароль" style="width: 100%; padding: 12px; background: #2a2a2a; border: 2px solid #373737; border-radius: 6px; color: #e0e0e0; font-size: 15px;">
+                    <svg class="eye-icon" onclick="togglePasswordIndex('factoryResetPassword')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button onclick="hideFactoryResetModal()" style="flex: 1; padding: 12px; background: #373737; border: none; border-radius: 6px; color: #e0e0e0; cursor: pointer;">Отмена</button>
+                <button onclick="executeFactoryReset()" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); border: none; border-radius: 6px; color: white; font-weight: 600; cursor: pointer;">🗑️ Сбросить</button>
+            </div>
+
+            <div id="factoryResetStatus" style="margin-top: 15px; padding: 10px; border-radius: 6px; display: none; text-align: center;"></div>
+        </div>
+    </div>
+
+    <script>
+        let stationListEl = document.getElementById('station-list');
+        let sortable = new Sortable(stationListEl, { animation: 150, handle: '.station-name' });
+
+        async function apiFetch(url, options) {
+            const response = await fetch(url, options);
+            if (response.status === 401) {
+                window.location.href = '/login';
+                throw new Error('Not authenticated');
+            }
+            return response;
+        }
+
+        function sendCommand(url) { apiFetch(url, { method: 'POST' }).catch(err => console.error(err)); }
+        function setVolume(value) { apiFetch('/api/player/volume', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `volume=${value}` }).catch(err => console.error(err)); }
+
+        function loadStations() {
+            // Загружаем информацию о лимите
+            apiFetch('/api/stations/info')
+                .then(res => res.json())
+                .then(info => {
+                    const counterEl = document.getElementById('station-counter');
+                    if (counterEl) {
+                        counterEl.textContent = `(${info.current}/${info.max})`;
+                        // Подсветка красным если лимит достигнут
+                        if (info.current >= info.max) {
+                            counterEl.style.color = '#cf6679';
+                        } else {
+                            counterEl.style.color = '#888';
+                        }
+                    }
+                })
+                .catch(err => console.error(err));
+            
+            // Загружаем список станций
+            apiFetch('/api/stations')
+                .then(res => res.json())
+                .then(stations => {
+                    stationListEl.innerHTML = '';
+                    stations.forEach(station => {
+                        const li = document.createElement('li');
+                        li.className = 'station-item';
+                        li.dataset.name = station.name;
+                        li.dataset.url = station.url;
+                        li.innerHTML = getStationHTML(station.name, station.url);
+                        stationListEl.appendChild(li);
+                    });
+                })
+                .catch(err => console.error(err));
+        }
+        
+        function getStationHTML(name, url) {
+            return `<span class="station-name">${name}</span>
+                    <div class="station-controls">
+                        <button onclick="editStation(this, '${name}', '${url}')">✏️</button>
+                        <button onclick="deleteStation('${name}')">🗑️</button>
+                    </div>`;
+        }
+
+        function getEditFormHTML(name, url) {
+            return `<div class="edit-form" style="width:100%">
+                        <input type="text" value="${name}" style="width: 90%; margin-bottom: 5px;">
+                        <input type="text" value="${url}" style="width: 90%;">
+                    </div>
+                    <div class="station-controls">
+                        <button onclick="saveEdit(this, '${name}')">✔️</button>
+                        <button onclick="cancelEdit(this, '${name}', '${url}')">❌</button>
+                    </div>`;
+        }
+
+        function deleteStation(name) {
+            if (!confirm(`Удалить станцию "${name}"?`)) return;
+            apiFetch('/api/delete', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `name=${encodeURIComponent(name)}` })
+                .then(res => { if (res.ok) loadStations(); else alert('Ошибка удаления'); })
+                .catch(err => console.error(err));
+        }
+
+        function editStation(btn, name, url) {
+            const li = btn.closest('.station-item');
+            li.innerHTML = getEditFormHTML(name, url);
+        }
+
+        function cancelEdit(btn, name, url) {
+            const li = btn.closest('.station-item');
+            li.innerHTML = getStationHTML(name, url);
+        }
+
+        function saveEdit(btn, originalName) {
+            const li = btn.closest('.station-item');
+            const inputs = li.querySelectorAll('input');
+            const newName = inputs[0].value;
+            const newUrl = inputs[1].value;
+            
+            // Предупреждение о HTTPS
+            if (newUrl.toLowerCase().startsWith('https://')) {
+                if (!confirm('⚠️ Вы изменяете URL на HTTPS.\n\nESP32 плохо работает с HTTPS - станция может НЕ заработать!\n\nПродолжить?')) {
+                    return;
+                }
+            }
+
+            apiFetch('/api/update', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `originalName=${encodeURIComponent(originalName)}&name=${encodeURIComponent(newName)}&url=${encodeURIComponent(newUrl)}`
+            })
+            .then(res => { if (res.ok) loadStations(); else alert('Ошибка обновления'); })
+            .catch(err => console.error(err));
+        }
+
+        function showAddForm() {
+            const existingForm = document.getElementById('add-form-li');
+            if (existingForm) return;
+
+            // Скрываем кнопку "Добавить"
+            const addBtn = document.getElementById('addStationBtn');
+            if (addBtn) addBtn.style.display = 'none';
+
+            const li = document.createElement('li');
+            li.id = 'add-form-li';
+            li.className = 'station-item';
+            li.innerHTML = `
+                <div style="background: #2a2a2a; padding: 10px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #ffa500;">
+                    <p style="color: #ffa500; margin: 0; font-size: 13px;">
+                        <strong>⚠️ Важно:</strong> ESP32 поддерживает только <strong>HTTP</strong> станции.<br>
+                        HTTPS может не работать. Пример: <code style="background: #1a1a1a; padding: 2px 6px; border-radius: 3px;">http://stream.example.com:8000/radio</code>
+                    </p>
+                </div>
+                ` + getEditFormHTML('', '').replace(/✔️/g, '➕').replace(/❌/g, '✖️');
+            
+            // Modify save and cancel for adding
+            li.querySelector('.station-controls button:first-child').setAttribute('onclick', 'addStation(this)');
+            li.querySelector('.station-controls button:last-child').setAttribute('onclick', 'cancelAddStation()');
+
+            stationListEl.appendChild(li);
+        }
+
+        function cancelAddStation() {
+            const form = document.getElementById('add-form-li');
+            if (form) form.remove();
+            
+            // Показываем кнопку "Добавить" обратно
+            const addBtn = document.getElementById('addStationBtn');
+            if (addBtn) addBtn.style.display = 'inline-block';
+        }
+
+        function addStation(btn) {
+            const li = btn.closest('.station-item');
+            const inputs = li.querySelectorAll('input');
+            const name = inputs[0].value;
+            const url = inputs[1].value;
+            if (!name || !url) { alert("Название и URL не могут быть пустыми."); return; }
+            
+            // Предупреждение о HTTPS
+            if (url.toLowerCase().startsWith('https://')) {
+                if (!confirm('⚠️ Вы добавляете HTTPS станцию.\n\nESP32 плохо работает с HTTPS - станция может НЕ заработать!\n\nРекомендуется искать HTTP версию станции.\n\nПродолжить?')) {
+                    return;
+                }
+            }
+
+            apiFetch('/api/add', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `name=${encodeURIComponent(name)}&url=${encodeURIComponent(url)}`
+            })
+            .then(res => {
+                if (res.ok) {
+                    // Удаляем форму
+                    li.remove();
+                    // Показываем кнопку "Добавить" обратно
+                    const addBtn = document.getElementById('addStationBtn');
+                    if (addBtn) addBtn.style.display = 'inline-block';
+                    // Перезагружаем список
+                    loadStations();
+                } else {
+                    // Показываем сообщение от сервера (например, о достижении лимита)
+                    res.text().then(errMsg => alert(errMsg || 'Ошибка добавления'));
+                }
+            })
+            .catch(err => console.error(err));
+        }
+
+        function saveOrder() {
+            let orderedNames = Array.from(stationListEl.children).map(li => li.dataset.name).filter(name => name);
+            apiFetch('/api/stations/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(orderedNames) })
+                .then(res => { if (res.ok) alert('Порядок сохранен!'); else alert('Ошибка сохранения порядка'); })
+                .catch(err => console.error(err));
+        }
+
+        document.getElementById('import-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            let fileInput = document.getElementById('import-file');
+            if (fileInput.files.length === 0) { alert('Выберите файл для импорта'); return; }
+            let formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            apiFetch('/api/stations/import', { method: 'POST', body: formData })
+                .then(res => { if (res.ok) { alert('Импорт успешен!'); loadStations(); } else { alert('Ошибка импорта'); } })
+                .catch(err => console.error(err));
+        });
+
+        // Управление загрузкой логов
+        let logsInterval = null;
+
+        function loadLogs() {
+            apiFetch('/api/logs')
+                .then(res => res.text())
+                .then(text => {
+                    let logsEl = document.getElementById('logs');
+                    if (document.activeElement !== logsEl) {
+                        const isScrolledToBottom = logsEl.scrollHeight - logsEl.clientHeight <= logsEl.scrollTop + 1;
+                        logsEl.textContent = text;
+                        if (isScrolledToBottom) {
+                            logsEl.scrollTop = logsEl.scrollHeight;
+                        }
+                    }
+                })
+                .catch(err => console.error(err));
+        }
+
+        function toggleLogs(enabled) {
+            let logsEl = document.getElementById('logs');
+            
+            if (enabled) {
+                // Включено - загружаем логи сразу и запускаем обновление
+                logsEl.style.color = 'inherit';
+                logsEl.textContent = 'Загрузка логов...';
+                loadLogs(); // Первая загрузка сразу
+                logsInterval = setInterval(loadLogs, 5000); // Обновление каждые 5 сек
+            } else {
+                // Отключено - останавливаем обновление
+                if (logsInterval) {
+                    clearInterval(logsInterval);
+                    logsInterval = null;
+                }
+                logsEl.style.color = '#888';
+                logsEl.textContent = 'Включите чекбокс выше для загрузки логов с ESP32...';
+            }
+        }
+
+        // === Factory Reset функции ===
+        function showFactoryResetModal() {
+            document.getElementById('factoryResetModal').style.display = 'flex';
+            document.getElementById('factoryResetPassword').value = '';
+            document.getElementById('factoryResetStatus').style.display = 'none';
+        }
+
+        function hideFactoryResetModal() {
+            document.getElementById('factoryResetModal').style.display = 'none';
+        }
+
+        async function executeFactoryReset() {
+            const password = document.getElementById('factoryResetPassword').value;
+            const statusDiv = document.getElementById('factoryResetStatus');
+
+            if (!password) {
+                statusDiv.textContent = 'Введите пароль';
+                statusDiv.style.background = 'rgba(255, 107, 107, 0.2)';
+                statusDiv.style.color = '#ff6b6b';
+                statusDiv.style.display = 'block';
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('password', password);
+
+                const response = await apiFetch('/api/factory-reset', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    statusDiv.textContent = '✅ Сброс выполнен! Перезагрузка...';
+                    statusDiv.style.background = 'rgba(72, 187, 120, 0.2)';
+                    statusDiv.style.color = '#48bb78';
+                    statusDiv.style.display = 'block';
+                    // Устройство перезагрузится автоматически
+                    setTimeout(() => {
+                        window.location.href = '/register'; // После ребута нужна регистрация
+                    }, 3000);
+                } else {
+                    const text = await response.text();
+                    statusDiv.textContent = text || 'Неверный пароль';
+                    statusDiv.style.background = 'rgba(255, 107, 107, 0.2)';
+                    statusDiv.style.color = '#ff6b6b';
+                    statusDiv.style.display = 'block';
+                }
+            } catch (err) {
+                statusDiv.textContent = 'Ошибка соединения';
+                statusDiv.style.background = 'rgba(255, 107, 107, 0.2)';
+                statusDiv.style.color = '#ff6b6b';
+                statusDiv.style.display = 'block';
+            }
+        }
+
+        // === Поворот дисплея ===
+        async function loadDisplayRotation() {
+            try {
+                const response = await apiFetch('/api/display/rotation');
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('displayRotationSelect').value = data.rotation;
+                }
+            } catch (err) {
+                console.error('Ошибка загрузки поворота дисплея', err);
+            }
+        }
+
+        async function changeDisplayRotation() {
+            const rotation = document.getElementById('displayRotationSelect').value;
+            const statusSpan = document.getElementById('displayRotationStatus');
+
+            try {
+                const response = await apiFetch('/api/display/rotation', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: `rotation=${rotation}`
+                });
+
+                if (response.ok) {
+                    statusSpan.style.display = 'inline';
+                    setTimeout(() => {
+                        statusSpan.style.display = 'none';
+                    }, 2000);
+                } else {
+                    alert('Ошибка применения настройки');
+                }
+            } catch (err) {
+                alert('Ошибка соединения');
+            }
+        }
+
+        // === Визуализатор ===
+        async function loadVisualizerStyles() {
+            try {
+                const stylesResponse = await apiFetch('/api/visualizer/styles');
+                const styles = await stylesResponse.json();
+                
+                const currentResponse = await apiFetch('/api/visualizer/style');
+                const current = await currentResponse.json();
+                
+                const container = document.getElementById('visualizer-styles');
+                container.innerHTML = '';
+                
+                styles.forEach(style => {
+                    const btn = document.createElement('button');
+                    btn.textContent = style.name;
+                    const isActive = current.style === style.id;
+                    btn.style = `
+                        padding: 12px;
+                        background: ${isActive ? '#bb86fc' : '#373737'};
+                        border: 2px solid ${isActive ? '#bb86fc' : '#555'};
+                        border-radius: 6px;
+                        color: white;
+                        cursor: pointer;
+                        font-weight: ${isActive ? '600' : '400'};
+                        transition: all 0.3s;
+                    `;
+                    btn.onmouseover = () => { if (!isActive) btn.style.background = '#444'; };
+                    btn.onmouseout = () => { if (!isActive) btn.style.background = '#373737'; };
+                    btn.onclick = () => changeVisualizerStyle(style.id);
+                    container.appendChild(btn);
+                });
+            } catch (err) {
+                console.error('Ошибка загрузки стилей визуализатора', err);
+            }
+        }
+
+        async function changeVisualizerStyle(styleId) {
+            try {
+                const response = await apiFetch('/api/visualizer/style', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: `style=${styleId}`
+                });
+                
+                if (response.ok) {
+                    loadVisualizerStyles(); // Обновляем UI
+                } else {
+                    alert('Ошибка смены стиля');
+                }
+            } catch (err) {
+                alert('Ошибка соединения');
+            }
+        }
+
+        // Toggle password visibility
+        function togglePasswordIndex(inputId) {
+            const input = document.getElementById(inputId);
+            const icon = event.currentTarget;
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23" stroke-linecap="round" stroke-linejoin="round"></line>';
+            } else {
+                input.type = 'password';
+                icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+            }
+        }
+
+        window.onload = () => {
+            loadStations();
+            loadDisplayRotation();
+            loadVisualizerStyles();
+            // Логи НЕ загружаются автоматически - только по чекбоксу!
+        };
+    </script>
+</body>
+</html>
