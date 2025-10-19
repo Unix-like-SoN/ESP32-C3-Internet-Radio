@@ -12,7 +12,7 @@
         #status { margin-top: 15px; min-height: 20px; }
         label { display: block; margin-top: 10px; }
         .password-wrapper { position: relative; display: inline-block; width: 280px; margin: 10px auto; }
-        .password-wrapper input { width: 100%; margin: 0; padding-right: 40px; }
+        .password-wrapper input { width: 100%; margin: 0; padding-right: 40px; box-sizing: border-box; }
         .eye-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; width: 24px; height: 24px; opacity: 0.6; transition: opacity 0.2s; }
         .eye-icon:hover { opacity: 1; }
     </style>
@@ -33,7 +33,7 @@
             <label for="password">Password:</label>
             <div class="password-wrapper">
                 <input type="password" name="password" id="password" placeholder="Password" required>
-                <svg class="eye-icon" onclick="togglePassword('password')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg class="eye-icon" onclick="togglePassword('password')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                     <circle cx="12" cy="12" r="3"></circle>
                 </svg>
