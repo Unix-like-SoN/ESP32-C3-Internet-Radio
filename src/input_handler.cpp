@@ -154,7 +154,17 @@ void loop_input() {
             unsigned long holdDuration = millis() - buttonPressStartTime;
             if (holdDuration < shortPressDuration) {
                 // Это было короткое нажатие
-                if (singleClickPendingTime != 0) {
+                
+                // Приоритет: IP Display pause/resume
+                if (is_ip_display_active()) {
+                    Serial.printf("🔘 Button click on IP display (paused=%d)\n", is_ip_display_paused());
+                    if (is_ip_display_paused()) {
+                        resume_ip_display();
+                    } else {
+                        pause_ip_display();
+                    }
+                    singleClickPendingTime = 0; // Отменяем отложенный клик
+                } else if (singleClickPendingTime != 0) {
                     // Это двойное нажатие, т.к. первое еще не обработано
                     previous_station();
                     singleClickPendingTime = 0; // Отменяем обработку одиночного

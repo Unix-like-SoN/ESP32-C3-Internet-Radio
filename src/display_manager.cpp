@@ -17,6 +17,12 @@ String ap_ip_address = "";
 String message_line1, message_line2;
 float shutdownProgress = 0.0;
 
+// IP Display with pause
+String ip_display_address = "";
+unsigned long ip_display_start_time = 0;
+unsigned long ip_display_duration = 2000;
+bool ip_display_paused = false;
+
 // Для плавной шкалы громкости
 float displayVolume = 0.0;
 
@@ -24,6 +30,7 @@ void draw_info_screen();
 void draw_visualizer();
 void draw_ap_mode_screen();
 void draw_message_screen();
+void draw_ip_display_screen();
 void draw_shutdown_screen();
 
 // ⚠️ Статус инициализации OLED
@@ -115,6 +122,14 @@ void IRAM_ATTR loop_display() {
         case MESSAGE:
             draw_message_screen();
             break;
+        case IP_DISPLAY:
+            // Auto-transition to INFO after timeout (if not paused)
+            if (!ip_display_paused && millis() - ip_display_start_time > ip_display_duration) {
+                currentDisplayMode = INFO;
+                reset_inactivity_timer();
+            }
+            draw_ip_display_screen();
+            break;
         case SHUTDOWN_ANIM:
             draw_shutdown_screen();
             break;
@@ -123,7 +138,7 @@ void IRAM_ATTR loop_display() {
 
 void reset_inactivity_timer() {
     lastInteractionTime = millis();
-    if (currentDisplayMode != INFO && currentDisplayMode != AP_MODE) {
+    if (currentDisplayMode != INFO && currentDisplayMode != AP_MODE && currentDisplayMode != IP_DISPLAY) {
         currentDisplayMode = INFO;
         display.clearDisplay();
     }
@@ -152,6 +167,41 @@ void show_message(const String& line1, const String& line2, int delay_ms) {
     currentDisplayMode = MESSAGE;
     loop_display(); 
     if (delay_ms > 0) delay(delay_ms);
+}
+
+// === IP DISPLAY WITH PAUSE ===
+void show_ip_address(const String& ip, unsigned long display_time_ms) {
+    ip_display_address = ip;
+    ip_display_start_time = millis();
+    ip_display_duration = display_time_ms;
+    ip_display_paused = false;
+    currentDisplayMode = IP_DISPLAY;
+    Serial.printf("📶 IP Display started: %s (duration: %lums)\n", ip.c_str(), display_time_ms);
+}
+
+void pause_ip_display() {
+    if (currentDisplayMode == IP_DISPLAY) {
+        ip_display_paused = true;
+        Serial.println("⏸️ IP Display PAUSED");
+    }
+}
+
+void resume_ip_display() {
+    if (currentDisplayMode == IP_DISPLAY && ip_display_paused) {
+        ip_display_paused = false;
+        // Transition to INFO mode immediately
+        currentDisplayMode = INFO;
+        reset_inactivity_timer();
+        Serial.println("▶️ IP Display RESUMED - continuing to audio");
+    }
+}
+
+bool is_ip_display_active() {
+    return currentDisplayMode == IP_DISPLAY;
+}
+
+bool is_ip_display_paused() {
+    return ip_display_paused;
 }
 
 void draw_info_screen() {
@@ -252,6 +302,64 @@ void draw_message_screen() {
         display.setCursor(0, 18);
         display.println(message_line2);
     }
+    display.display();
+}
+
+void draw_ip_display_screen() {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    
+    // Title
+    String title = "WiFi Connected!";
+    display.setCursor((SCREEN_WIDTH - title.length() * 6) / 2, 0);
+    display.println(title);
+    
+    // IP Address centered
+    display.setTextSize(1);
+    int ip_x = (SCREEN_WIDTH - ip_display_address.length() * 6) / 2;
+    display.setCursor(ip_x, 14);
+    display.println(ip_display_address);
+    
+    // If paused - show loader animation and hint
+    if (ip_display_paused) {
+        // Animated spinner
+        static uint8_t spinnerFrame = 0;
+        const char spinner[] = {'|', '/', '-', '\\'};
+        spinnerFrame = (millis() / 150) % 4;
+        
+        // Draw spinner
+        display.setTextSize(2);
+        display.setCursor(SCREEN_WIDTH / 2 - 6, 24);
+        display.print(spinner[spinnerFrame]);
+        
+        // Hint text
+        display.setTextSize(1);
+        String hint = "Click to continue";
+        display.setCursor((SCREEN_WIDTH - hint.length() * 6) / 2, 50);
+        display.println(hint);
+    } else {
+        // Auto-continuing - show countdown
+        unsigned long remaining = ip_display_duration - (millis() - ip_display_start_time);
+        if (remaining > ip_display_duration) remaining = 0; // Overflow protection
+        
+        String hint = "Starting in " + String(remaining / 1000 + 1) + "s";
+        display.setTextSize(1);
+        display.setCursor((SCREEN_WIDTH - hint.length() * 6) / 2, 50);
+        display.println(hint);
+        
+        // Progress bar
+        int bar_w = 100;
+        int bar_x = (SCREEN_WIDTH - bar_w) / 2;
+        int bar_y = 38;
+        int bar_h = 4;
+        float progress = (float)(millis() - ip_display_start_time) / ip_display_duration;
+        if (progress > 1.0) progress = 1.0;
+        
+        display.drawRect(bar_x, bar_y, bar_w, bar_h, SSD1306_WHITE);
+        display.fillRect(bar_x, bar_y, (int)(bar_w * progress), bar_h, SSD1306_WHITE);
+    }
+    
     display.display();
 }
 

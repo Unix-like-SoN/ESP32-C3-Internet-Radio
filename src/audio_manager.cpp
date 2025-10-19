@@ -132,6 +132,9 @@ void try_reinit_i2s() {
 }
 
 void IRAM_ATTR loop_audio() {
+    // 📶 Don't start audio while IP display is active
+    if (is_ip_display_active()) return;
+    
     // ⚠️ Проверка инициализации и попытка восстановления I2S
     try_reinit_i2s();
     if (!i2sInitialized) return; // I2S не готов, пропускаем аудио

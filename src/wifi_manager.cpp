@@ -2,6 +2,7 @@
 #include "config.h"
 #include "wifi_manager.h"
 #include "display_manager.h"
+#include "input_handler.h"
 #include "log_manager.h"
 #include "web_server_manager.h"
 #include "string_utils.h"
@@ -60,8 +61,11 @@ bool connect_to_wifi() {
             String ip = WiFi.localIP().toString();
             int rssi = WiFi.RSSI();
             
-            show_message("Connected!", ip, 1500);
+            show_ip_address(ip, 2000);
             log_message(formatString("✅ WiFi OK: %s (%d dBm)", ip.c_str(), rssi));
+            
+            // IP display will be handled in main loop()
+            // User can click to pause/resume
             
             // Предупреждение о слабом сигнале
             if (rssi < -80) {
@@ -118,7 +122,8 @@ void handle_wifi_recovery() {
         if (isConnected) {
             wifiRecoveryState = WIFI_OK;
             log_message("✅ WiFi восстановлен автоматически!");
-            show_message("WiFi OK!", WiFi.localIP().toString(), 1500);
+            show_ip_address(WiFi.localIP().toString(), 2000);
+            // IP display handled in main loop
             reset_inactivity_timer();
             return;
         }
