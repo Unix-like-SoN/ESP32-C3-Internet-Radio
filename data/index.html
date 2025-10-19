@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -42,6 +42,14 @@
         .eye-icon:hover { opacity: 1; color: #bb86fc; }
         #add-form-li { animation: slideInDown 0.3s ease-out; }
         @keyframes slideInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        /* Modern toggle switch for language */
+        .lang-switch { position: relative; display: inline-block; width: 54px; height: 28px; }
+        .lang-switch input { opacity: 0; width: 0; height: 0; }
+        .lang-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; border-radius: 28px; transition: 0.3s; }
+        .lang-slider:before { position: absolute; content: ""; height: 22px; width: 22px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: 0.3s; }
+        .lang-switch input:checked + .lang-slider { background-color: #bb86fc; }
+        .lang-switch input:checked + .lang-slider:before { transform: translateX(26px); }
+        .lang-slider:hover { box-shadow: 0 0 8px rgba(187, 134, 252, 0.5); }
     </style>
 </head>
 <body>
@@ -51,47 +59,47 @@
         <div class="grid">
             <div class="card">
                 <div class="center-content">
-                    <h2>Пульт управления</h2>
+                    <h2 data-i18n="control.title">Пульт управления</h2>
                     <div>
-                        <button onclick="sendCommand('/api/player/previous')">⏮️ Prev</button>
-                        <button onclick="sendCommand('/api/player/next')">Next ⏭️</button>
+                        <button onclick="sendCommand('/api/player/previous')">⏮️ <span data-i18n="control.prev">Prev</span></button>
+                        <button onclick="sendCommand('/api/player/next')"><span data-i18n="control.next">Next</span> ⏭️</button>
                     </div>
                     <div>
-                        <label for="volume">Громкость:</label>
+                        <label for="volume" data-i18n="control.volume">Громкость:</label>
                         <input type="range" id="volume" class="volume-slider" min="0" max="1" step="0.01" onchange="setVolume(this.value)">
                     </div>
-                    <button class="btn-danger" onclick="sendCommand('/api/system/reboot')">Перезагрузить</button>
+                    <button class="btn-danger" onclick="sendCommand('/api/system/reboot')" data-i18n="control.reboot">Перезагрузить</button>
                 </div>
             </div>
 
             <div class="card">
-                <h2>Станции <span id="station-counter" style="color: #888; font-size: 0.8em;">(0/25)</span></h2>
+                <h2><span data-i18n="stations.title">Станции</span> <span id="station-counter" style="color: #888; font-size: 0.8em;">(0/25)</span></h2>
                 <ul id="station-list" class="station-list"></ul>
                 <div class="station-buttons">
-                    <button onclick="saveOrder()">Сохранить порядок</button>
-                    <button id="addStationBtn" onclick="showAddForm()">Добавить</button>
+                    <button onclick="saveOrder()" data-i18n="stations.save">Сохранить порядок</button>
+                    <button id="addStationBtn" onclick="showAddForm()" data-i18n="stations.add">Добавить</button>
                 </div>
             </div>
         </div>
 
         <div class="card" style="margin-top: 20px;">
-            <h2>Импорт / Экспорт</h2>
+            <h2 data-i18n="import.title">Импорт / Экспорт</h2>
             <div class="import-export-container">
-                <a href="/api/stations/export" download="stations.json" class="btn-like">Экспорт</a>
+                <a href="/api/stations/export" download="stations.json" class="btn-like" data-i18n="import.export">Экспорт</a>
                 <form id="import-form" style="display: flex; align-items: center; gap: 10px;">
                     <input type="file" id="import-file" accept=".json" required>
-                    <input type="submit" value="Импорт">
+                    <input type="submit" value="Импорт" data-i18n="import.import">
                 </form>
             </div>
         </div>
 
         <div class="card" style="margin-top: 20px;">
-            <h2>Логи</h2>
+            <h2 data-i18n="logs.title">Логи</h2>
             <label style="display: block; margin-bottom: 10px;">
                 <input type="checkbox" id="logsToggle" onchange="toggleLogs(this.checked)">
-                <span>Показывать логи (обновление каждые 5 сек)</span>
+                <span data-i18n="logs.enable">Показывать логи (обновление каждые 5 сек)</span>
             </label>
-            <pre id="logs" style="color: #888;">Включите чекбокс выше для загрузки логов с ESP32...</pre>
+            <pre id="logs" style="color: #888;" data-i18n="logs.placeholder">Включите чекбокс выше для загрузки логов с ESP32...</pre>
         </div>
 
         <!-- Раздел Settings -->
@@ -100,8 +108,8 @@
             
             <!-- Стиль визуализатора -->
             <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                <h3 style="color: #bb86fc; margin-top: 0; margin-bottom: 10px;">🎨 Стиль визуализатора</h3>
-                <p style="color: #a0a0a0; font-size: 14px; margin-bottom: 15px;">
+                <h3 style="color: #bb86fc; margin-top: 0; margin-bottom: 10px;">🎨 <span data-i18n="settings.visualizer.title">Стиль визуализатора</span></h3>
+                <p style="color: #a0a0a0; font-size: 14px; margin-bottom: 15px;" data-i18n="settings.visualizer.description">
                     Выберите стиль анимации на OLED дисплее (показывается после 15 сек неактивности)
                 </p>
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;" id="visualizer-styles">
@@ -109,30 +117,47 @@
                 </div>
             </div>
 
+            <!-- Переключатель языка -->
+            <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="color: #bb86fc; margin-top: 0; margin-bottom: 10px;">🌐 <span data-i18n="settings.language.title">Язык интерфейса</span></h3>
+                <p style="color: #a0a0a0; font-size: 14px; margin-bottom: 15px;" data-i18n="settings.language.description">
+                    Выберите язык веб-интерфейса
+                </p>
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <span style="color: #e0e0e0; font-weight: 500;">RU</span>
+                    <label class="lang-switch">
+                        <input type="checkbox" id="langToggle" onchange="toggleLanguage()">
+                        <span class="lang-slider"></span>
+                    </label>
+                    <span style="color: #e0e0e0; font-weight: 500;">EN</span>
+                    <span id="langStatus" style="color: #48bb78; font-size: 14px; display: none;">✓ <span data-i18n="common.applied">Применено</span></span>
+                </div>
+            </div>
+
             <!-- Поворот дисплея -->
             <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                <h3 style="color: #bb86fc; margin-top: 0; margin-bottom: 10px;">📺 Поворот дисплея</h3>
-                <p style="color: #a0a0a0; font-size: 14px; margin-bottom: 15px;">
+                <h3 style="color: #bb86fc; margin-top: 0; margin-bottom: 10px;">📺 <span data-i18n="settings.display.title">Поворот дисплея</span></h3>
+                <p style="color: #a0a0a0; font-size: 14px; margin-bottom: 15px;" data-i18n="settings.display.description">
                     Измените ориентацию OLED дисплея (нормальный или перевернутый на 180°)
                 </p>
                 <div style="display: flex; gap: 10px; align-items: center;">
-                    <label style="color: #e0e0e0; font-weight: 500;">Ориентация:</label>
+                    <label style="color: #e0e0e0; font-weight: 500;" data-i18n="settings.display.orientation">Ориентация:</label>
                     <select id="displayRotationSelect" onchange="changeDisplayRotation()" style="padding: 10px; background: #373737; border: 2px solid #555; border-radius: 6px; color: #e0e0e0; font-size: 14px; cursor: pointer;">
-                        <option value="0">Нормальный</option>
-                        <option value="2" selected>Flipped (180°)</option>
+                        <option value="0" data-i18n="settings.display.normal">Нормальный</option>
+                        <option value="2" selected data-i18n="settings.display.flipped">Flipped (180°)</option>
                     </select>
-                    <span id="displayRotationStatus" style="color: #48bb78; font-size: 14px; display: none;">✓ Применено</span>
+                    <span id="displayRotationStatus" style="color: #48bb78; font-size: 14px; display: none;">✓ <span data-i18n="common.applied">Применено</span></span>
                 </div>
             </div>
 
             <!-- Опасная зона -->
             <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; border-left: 4px solid #ff6b6b;">
-                <h3 style="color: #ff6b6b; margin-top: 0; margin-bottom: 10px;">⚠️ Опасная зона</h3>
-                <p style="color: #a0a0a0; font-size: 14px; margin-bottom: 15px;">
+                <h3 style="color: #ff6b6b; margin-top: 0; margin-bottom: 10px;">⚠️ <span data-i18n="settings.danger.title">Опасная зона</span></h3>
+                <p style="color: #a0a0a0; font-size: 14px; margin-bottom: 15px;" data-i18n="settings.danger.description">
                     Factory Reset удалит ВСЕ настройки и вернет устройство к заводским настройкам.
                 </p>
                 <button onclick="showFactoryResetModal()" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); padding: 12px 24px; border: none; border-radius: 6px; color: white; font-weight: 600; cursor: pointer;">
-                    🗑️ Factory Reset
+                    🗑️ <span data-i18n="settings.danger.button">Factory Reset</span>
                 </button>
             </div>
         </div>
@@ -574,7 +599,102 @@
             }
         }
 
+        // === СИСТЕМА ЛОКАЛИЗАЦИИ ===
+        const translations = {
+            ru: {
+                'control.title': 'Пульт управления',
+                'control.prev': 'Prev',
+                'control.next': 'Next',
+                'control.volume': 'Громкость:',
+                'control.reboot': 'Перезагрузить',
+                'stations.title': 'Станции',
+                'stations.save': 'Сохранить порядок',
+                'stations.add': 'Добавить',
+                'import.title': 'Импорт / Экспорт',
+                'import.export': 'Экспорт',
+                'import.import': 'Импорт',
+                'logs.title': 'Логи',
+                'logs.enable': 'Показывать логи (обновление каждые 5 сек)',
+                'logs.placeholder': 'Включите чекбокс выше для загрузки логов с ESP32...',
+                'settings.language.title': 'Язык интерфейса',
+                'settings.language.description': 'Выберите язык веб-интерфейса',
+                'settings.visualizer.title': 'Стиль визуализатора',
+                'settings.visualizer.description': 'Выберите стиль анимации на OLED дисплее (показывается после 15 сек неактивности)',
+                'settings.display.title': 'Поворот дисплея',
+                'settings.display.description': 'Измените ориентацию OLED дисплея (нормальный или перевернутый на 180°)',
+                'settings.display.orientation': 'Ориентация:',
+                'settings.display.normal': 'Нормальный',
+                'settings.display.flipped': 'Flipped (180°)',
+                'settings.danger.title': 'Опасная зона',
+                'settings.danger.description': 'Factory Reset удалит ВСЕ настройки и вернет устройство к заводским настройкам.',
+                'settings.danger.button': 'Factory Reset',
+                'common.applied': 'Применено'
+            },
+            en: {
+                'control.title': 'Control Panel',
+                'control.prev': 'Prev',
+                'control.next': 'Next',
+                'control.volume': 'Volume:',
+                'control.reboot': 'Reboot',
+                'stations.title': 'Stations',
+                'stations.save': 'Save Order',
+                'stations.add': 'Add',
+                'import.title': 'Import / Export',
+                'import.export': 'Export',
+                'import.import': 'Import',
+                'logs.title': 'Logs',
+                'logs.enable': 'Show logs (updates every 5 sec)',
+                'logs.placeholder': 'Enable checkbox above to load logs from ESP32...',
+                'settings.language.title': 'Interface Language',
+                'settings.language.description': 'Choose web interface language',
+                'settings.visualizer.title': 'Visualizer Style',
+                'settings.visualizer.description': 'Select animation style on OLED display (shown after 15 sec of inactivity)',
+                'settings.display.title': 'Display Rotation',
+                'settings.display.description': 'Change OLED display orientation (normal or flipped 180°)',
+                'settings.display.orientation': 'Orientation:',
+                'settings.display.normal': 'Normal',
+                'settings.display.flipped': 'Flipped (180°)',
+                'settings.danger.title': 'Danger Zone',
+                'settings.danger.description': 'Factory Reset will delete ALL settings and return device to factory defaults.',
+                'settings.danger.button': 'Factory Reset',
+                'common.applied': 'Applied'
+            }
+        };
+
+        let currentLang = localStorage.getItem('lang') || 'en';
+
+        function applyLanguage(lang) {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[lang] && translations[lang][key]) {
+                    if (el.tagName === 'INPUT' && el.type === 'submit') {
+                        el.value = translations[lang][key];
+                    } else {
+                        el.textContent = translations[lang][key];
+                    }
+                }
+            });
+            document.documentElement.lang = lang;
+        }
+
+        function toggleLanguage() {
+            const toggle = document.getElementById('langToggle');
+            const status = document.getElementById('langStatus');
+            currentLang = toggle.checked ? 'en' : 'ru';
+            localStorage.setItem('lang', currentLang);
+            applyLanguage(currentLang);
+            
+            status.style.display = 'inline';
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 2000);
+        }
+
         window.onload = () => {
+            // Загрузка сохраненного языка
+            document.getElementById('langToggle').checked = (currentLang === 'en');
+            applyLanguage(currentLang);
+            
             loadStations();
             loadDisplayRotation();
             loadVisualizerStyles();
