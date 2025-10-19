@@ -82,8 +82,8 @@ form{border:2px solid #61afef;padding:20px;display:inline-block;}
 .forgot-link a{color:#61afef;text-decoration:none;font-size:14px;}
 .forgot-link a:hover{text-decoration:underline;}
 .password-wrapper{position:relative;display:inline-block;width:220px;margin:10px;}
-.password-wrapper input{width:100%;margin:0;padding:10px 40px 10px 10px;}
-.eye-icon{position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;width:20px;height:20px;opacity:0.6;transition:opacity 0.2s;color:#ccc;}
+.password-wrapper input{width:100%;margin:0;padding:10px 40px 10px 10px;box-sizing:border-box;}
+.eye-icon{position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;width:24px;height:24px;opacity:0.6;transition:opacity 0.2s;color:#ccc;}
 .eye-icon:hover{opacity:1;color:#61afef;}
 </style></head><body>
 <h1>Radio Login</h1><form action=/login method=post>
