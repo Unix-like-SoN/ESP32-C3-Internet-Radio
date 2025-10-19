@@ -413,8 +413,13 @@ int find_available_station(int direction) {
             }
             
             STATIONS_UNLOCK();
-            // ✅ Возвращаем станцию, на которой остановились (важно!)
-            return station;  // НЕ currentStation!
+            // ✅ ИСПРАВЛЕНИЕ БАГА: после сброса флагов возвращаем следующую/предыдущую станцию
+            // А не последнюю из цикла (которая может совпадать с currentStation)
+            if (direction > 0) {
+                return (currentStation + 1) % totalStations;
+            } else {
+                return (currentStation - 1 + totalStations) % totalStations;
+            }
         }
     } while (!stations[station].isAvailable);
     
